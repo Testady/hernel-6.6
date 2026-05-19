@@ -1,4 +1,4 @@
-name: Build
+name: Build hwbp_driver
 
 on:
   workflow_dispatch:
@@ -51,18 +51,28 @@ jobs:
           wait
           echo "所有源码及llvm-Clang18工具链初始化完成！"
 
-      - name: 配置内核（只配置，不编译完整内核）
+      - name: 配置内核并准备模块编译环境
         run: |
           cd kernel_workspace/common
           export PATH=$GITHUB_WORKSPACE/kernel_workspace/clang18/bin:$GITHUB_WORKSPACE/kernel_workspace/build-tools/bin:$PATH
-          make ARCH=arm64 LLVM=1 gki_defconfig
-          make ARCH=arm64 LLVM=1 modules_prepare
+          export LLVM=1
+          make ARCH=arm64 gki_defconfig
+          make ARCH=arm64 modules_prepare
+
+      - name: 生成 Module.symvers
+        run: |
+          cd kernel_workspace/common
+          export PATH=$GITHUB_WORKSPACE/kernel_workspace/clang18/bin:$GITHUB_WORKSPACE/kernel_workspace/build-tools/bin:$PATH
+          export LLVM=1
+          # 快速编译一个已有模块来生成符号表
+          make ARCH=arm64 M=drivers/char modules_prepare
 
       - name: 编译驱动模块
         run: |
           cd kernel_workspace/common
           export PATH=$GITHUB_WORKSPACE/kernel_workspace/clang18/bin:$GITHUB_WORKSPACE/kernel_workspace/build-tools/bin:$PATH
-          make ARCH=arm64 LLVM=1 M=$GITHUB_WORKSPACE modules
+          export LLVM=1
+          make ARCH=arm64 M=$GITHUB_WORKSPACE modules
           cp $GITHUB_WORKSPACE/hwbp_driver.ko $GITHUB_WORKSPACE/6.6.ko
 
       - name: 上传驱动文件
