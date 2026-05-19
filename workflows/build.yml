@@ -1,1 +1,39 @@
+name: Build Kernel Module
 
+on:
+  push:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout driver code
+        uses: actions/checkout@v4
+
+      - name: Checkout kernel source
+        run: |
+          git clone https://github.com/cctv18/android_kernel_common_oneplus_sm8750.git -b oneplus/sm8750_v_16.0.0_oneplus_13_6.6.89 kernel
+
+      - name: Setup build environment
+        run: |
+          sudo apt update
+          sudo apt install -y git make gcc clang lld flex bison libssl-dev bc kmod
+
+      - name: Prepare kernel
+        run: |
+          cd kernel
+          make ARCH=arm64 LLVM=1 defconfig
+          make ARCH=arm64 LLVM=1 modules_prepare
+
+      - name: Build driver
+        run: |
+          cd kernel
+          make ARCH=arm64 LLVM=1 M=$GITHUB_WORKSPACE modules
+
+      - name: Upload .ko file
+        uses: actions/upload-artifact@v4
+        with:
+          name: kernel-module
+          path: "*.ko"
