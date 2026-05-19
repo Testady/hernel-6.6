@@ -15,7 +15,6 @@ jobs:
       - name: Checkout kernel source
         run: |
           git clone https://github.com/cctv18/android_kernel_common_oneplus_sm8750.git -b oneplus/sm8750_v_16.0.0_oneplus_13_6.6.89 kernel
-
       - name: Setup build environment
         run: |
           sudo apt update
