@@ -20,10 +20,8 @@ jobs:
           sudo apt update
           sudo apt install -y aria2
 
-          aria2c -s16 -x16 -k1M https://github.com/cctv18/android_kernel_common_oneplus_sm8750/archive/refs/heads/oneplus/sm8750_v_16.0.0_oneplus_13_6.6.89.zip -o common.zip
-          unzip -q common.zip
-          mv android_kernel_common_oneplus_sm8750-oneplus-sm8750_v_16.0.0_oneplus_13_6.6.89 common
-          rm common.zip
+          git clone https://github.com/cctv18/android_kernel_common_oneplus_sm8750.git \
+            -b oneplus/sm8750_v_16.0.0_oneplus_13_6.6.89 common
 
           mkdir -p clang18
           aria2c -s16 -x16 -k1M https://github.com/cctv18/oneplus_sm8650_toolchain/releases/download/LLVM-Clang18-r510928/clang-r510928.zip -o clang.zip
@@ -37,14 +35,17 @@ jobs:
       - name: Prepare kernel
         run: |
           cd kernel_workspace/common
-          make ARCH=arm64 LLVM=1 gki_defconfig
-          make ARCH=arm64 LLVM=1 modules_prepare
+          export PATH=$GITHUB_WORKSPACE/kernel_workspace/clang18/bin:$GITHUB_WORKSPACE/kernel_workspace/build-tools/bin:$PATH
+          export LLVM=1
+          make ARCH=arm64 gki_defconfig
+          make ARCH=arm64 modules_prepare
 
       - name: Build driver
         run: |
           cd kernel_workspace/common
           export PATH=$GITHUB_WORKSPACE/kernel_workspace/clang18/bin:$GITHUB_WORKSPACE/kernel_workspace/build-tools/bin:$PATH
-          make ARCH=arm64 LLVM=1 M=$GITHUB_WORKSPACE modules
+          export LLVM=1
+          make ARCH=arm64 M=$GITHUB_WORKSPACE modules
 
       - name: Upload .ko file
         uses: actions/upload-artifact@v4
