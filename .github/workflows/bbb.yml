@@ -3,55 +3,39 @@ name: Build hwbp_driver
 on:
   workflow_dispatch:
 
-env:
-  TZ: Asia/Shanghai
-  ANDROID_VERSION: 'android15'
-  KERNEL_VERSION: '6.6'
-
 jobs:
   build:
     runs-on: ubuntu-latest
-    permissions:
-      actions: write
-      contents: read
     steps:
       - name: Checkout driver code
         uses: actions/checkout@v4
 
-      - name: 安装环境依赖+初始化源码仓库及llvm-Clang18工具链
+      - name: Setup environment
         run: |
-          rm -rf kernel_workspace
+          sudo apt update
+          sudo apt install -y aria2 libelf-dev libssl-dev bc flex bison
+
+      - name: Download kernel source
+        run: |
           mkdir kernel_workspace
           cd kernel_workspace
-          
-          sudo apt-mark hold firefox &&
-          sudo apt-mark hold libc-bin &&
-          sudo apt purge man-db &&
-          sudo rm -rf /var/lib/man-db/auto-update &&
-          sudo apt update &&
-          sudo apt-get install -y --no-install-recommends binutils python-is-python3 libssl-dev libelf-dev ccache aria2
-          
-          echo "正在克隆源码仓库..."
-          aria2c -s16 -x16 -k1M https://github.com/cctv18/android_kernel_common_oneplus_sm8750/archive/refs/heads/oneplus/sm8750_v_16.0.0_oneplus_13_6.6.89.zip -o common.zip && 
-          unzip -q common.zip && 
-          mv "android_kernel_common_oneplus_sm8750-oneplus-sm8750_v_16.0.0_oneplus_13_6.6.89" common &&
-          rm -rf common.zip &
-          
-          echo "正在克隆llvm-clang18工具链..." &&
-          mkdir -p clang18 &&
-          aria2c -s16 -x16 -k1M https://github.com/cctv18/oneplus_sm8650_toolchain/releases/download/LLVM-Clang18-r510928/clang-r510928.zip -o clang.zip &&
-          unzip -q clang.zip -d clang18 &&
-          rm -rf clang.zip &
-          
-          echo "正在克隆构建工具..." &&
-          aria2c -s16 -x16 -k1M https://github.com/cctv18/oneplus_sm8650_toolchain/releases/download/LLVM-Clang18-r510928/build-tools.zip -o build-tools.zip &&
-          unzip -q build-tools.zip &&
-          rm -rf build-tools.zip &
-          
-          wait
-          echo "所有源码及llvm-Clang18工具链初始化完成！"
+          aria2c -s16 -x16 -k1M https://github.com/cctv18/android_kernel_common_oneplus_sm8750/archive/refs/heads/oneplus/sm8750_v_16.0.0_oneplus_13_6.6.89.zip -o common.zip
+          unzip -q common.zip
+          mv android_kernel_common_oneplus_sm8750-oneplus-sm8750_v_16.0.0_oneplus_13_6.6.89 common
+          rm common.zip
 
-      - name: 配置内核并准备模块编译环境
+      - name: Download toolchain
+        run: |
+          cd kernel_workspace
+          mkdir -p clang18
+          aria2c -s16 -x16 -k1M https://github.com/cctv18/oneplus_sm8650_toolchain/releases/download/LLVM-Clang18-r510928/clang-r510928.zip -o clang.zip
+          unzip -q clang.zip -d clang18
+          rm clang.zip
+          aria2c -s16 -x16 -k1M https://github.com/cctv18/oneplus_sm8650_toolchain/releases/download/LLVM-Clang18-r510928/build-tools.zip -o build-tools.zip
+          unzip -q build-tools.zip
+          rm build-tools.zip
+
+      - name: Prepare kernel
         run: |
           cd kernel_workspace/common
           export PATH=$GITHUB_WORKSPACE/kernel_workspace/clang18/bin:$GITHUB_WORKSPACE/kernel_workspace/build-tools/bin:$PATH
@@ -59,23 +43,17 @@ jobs:
           make ARCH=arm64 gki_defconfig
           make ARCH=arm64 modules_prepare
 
-      - name: 生成 Module.symvers
+      - name: Build driver
         run: |
           cd kernel_workspace/common
           export PATH=$GITHUB_WORKSPACE/kernel_workspace/clang18/bin:$GITHUB_WORKSPACE/kernel_workspace/build-tools/bin:$PATH
           export LLVM=1
-          # 快速编译一个已有模块来生成符号表
-          make ARCH=arm64 M=drivers/char modules_prepare
+          echo "obj-m := hwbp_driver.o" > Makefile
+          cp $GITHUB_WORKSPACE/hwbp_driver.c ./
+          make ARCH=arm64 M=$(pwd) modules KBUILD_MODPOST_WARN=1
+          cp hwbp_driver.ko $GITHUB_WORKSPACE/6.6.ko
 
-      - name: 编译驱动模块
-        run: |
-          cd kernel_workspace/common
-          export PATH=$GITHUB_WORKSPACE/kernel_workspace/clang18/bin:$GITHUB_WORKSPACE/kernel_workspace/build-tools/bin:$PATH
-          export LLVM=1
-          make ARCH=arm64 M=$GITHUB_WORKSPACE modules
-          cp $GITHUB_WORKSPACE/hwbp_driver.ko $GITHUB_WORKSPACE/6.6.ko
-
-      - name: 上传驱动文件
+      - name: Upload .ko
         uses: actions/upload-artifact@v4
         with:
           name: 6.6
