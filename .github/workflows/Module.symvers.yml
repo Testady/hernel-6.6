@@ -1,0 +1,53 @@
+name: Generate and Cache Module.symvers
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Setup environment
+        run: |
+          sudo apt update
+          sudo apt install -y aria2 libelf-dev libssl-dev bc flex bison
+
+      - name: Download kernel source
+        run: |
+          mkdir kernel_workspace
+          cd kernel_workspace
+          aria2c -s16 -x16 -k1M https://github.com/cctv18/android_kernel_common_oneplus_sm8750/archive/refs/heads/oneplus/sm8750_v_16.0.0_oneplus_13_6.6.89.zip -o common.zip
+          unzip -q common.zip
+          mv android_kernel_common_oneplus_sm8750-oneplus-sm8750_v_16.0.0_oneplus_13_6.6.89 common
+          rm common.zip
+
+      - name: Download toolchain
+        run: |
+          cd kernel_workspace
+          mkdir -p clang18
+          aria2c -s16 -x16 -k1M https://github.com/cctv18/oneplus_sm8650_toolchain/releases/download/LLVM-Clang18-r510928/clang-r510928.zip -o clang.zip
+          unzip -q clang.zip -d clang18
+          rm clang.zip
+          aria2c -s16 -x16 -k1M https://github.com/cctv18/oneplus_sm8650_toolchain/releases/download/LLVM-Clang18-r510928/build-tools.zip -o build-tools.zip
+          unzip -q build-tools.zip
+          rm build-tools.zip
+
+      - name: Configure kernel
+        run: |
+          cd kernel_workspace/common
+          export PATH=$GITHUB_WORKSPACE/kernel_workspace/clang18/bin:$GITHUB_WORKSPACE/kernel_workspace/build-tools/bin:$PATH
+          export LLVM=1
+          make ARCH=arm64 gki_defconfig
+
+      - name: Build vmlinux to generate Module.symvers
+        run: |
+          cd kernel_workspace/common
+          export PATH=$GITHUB_WORKSPACE/kernel_workspace/clang18/bin:$GITHUB_WORKSPACE/kernel_workspace/build-tools/bin:$PATH
+          export LLVM=1
+          make -j$(nproc --all) ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- CC="clang" LD="ld.lld" HOSTLD=ld.lld vmlinux
+
+      - name: Cache Module.symvers
+        uses: actions/cache@v4
+        with:
+          path: kernel_workspace/common/Module.symvers
+          key: kernel-symvers-${{ runner.os }}
