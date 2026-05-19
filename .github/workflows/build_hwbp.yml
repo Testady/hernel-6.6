@@ -15,9 +15,6 @@ jobs:
       actions: write
       contents: read
     steps:
-      - name: Checkout driver code
-        uses: actions/checkout@v4
-
       - name: 安装环境依赖+初始化源码仓库及llvm-Clang18工具链
         run: |
           rm -rf kernel_workspace
@@ -51,30 +48,20 @@ jobs:
           wait
           echo "所有源码及llvm-Clang18工具链初始化完成！"
 
-      - name: 屏蔽vdso编译（避免llvm-readelf报错）
-        run: |
-          cd kernel_workspace/common
-          # 备份并替换 vdso Makefile
-          mv arch/arm64/kernel/vdso/Makefile arch/arm64/kernel/vdso/Makefile.bak
-          echo "obj- := dummy.o" > arch/arm64/kernel/vdso/Makefile
-
-      - name: 配置内核
+      - name: 配置内核并准备模块编译环境
         run: |
           cd kernel_workspace/common
           export PATH=$GITHUB_WORKSPACE/kernel_workspace/clang18/bin:$GITHUB_WORKSPACE/kernel_workspace/build-tools/bin:$PATH
-          make ARCH=arm64 LLVM=1 gki_defconfig
-          make ARCH=arm64 LLVM=1 modules_prepare
-
-      - name: 恢复vdso Makefile
-        run: |
-          cd kernel_workspace/common
-          mv arch/arm64/kernel/vdso/Makefile.bak arch/arm64/kernel/vdso/Makefile
+          export LLVM=1
+          make ARCH=arm64 gki_defconfig
+          make ARCH=arm64 modules_prepare
 
       - name: 编译驱动模块
         run: |
           cd kernel_workspace/common
           export PATH=$GITHUB_WORKSPACE/kernel_workspace/clang18/bin:$GITHUB_WORKSPACE/kernel_workspace/build-tools/bin:$PATH
-          make ARCH=arm64 LLVM=1 M=$GITHUB_WORKSPACE modules
+          export LLVM=1
+          make ARCH=arm64 M=$GITHUB_WORKSPACE modules
           cp $GITHUB_WORKSPACE/hwbp_driver.ko $GITHUB_WORKSPACE/6.6.ko
 
       - name: 上传驱动文件
