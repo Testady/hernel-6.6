@@ -30,6 +30,12 @@ jobs:
           unzip -q build-tools.zip
           rm build-tools.zip
 
+      - name: Setup llvm symlinks
+        run: |
+          sudo ln -sf $GITHUB_WORKSPACE/kernel_workspace/clang18/bin/llvm-readelf /usr/bin/llvm-readelf
+          sudo ln -sf $GITHUB_WORKSPACE/kernel_workspace/clang18/bin/llvm-nm /usr/bin/llvm-nm
+          sudo ln -sf $GITHUB_WORKSPACE/kernel_workspace/clang18/bin/llvm-objcopy /usr/bin/llvm-objcopy
+
       - name: Prepare kernel
         run: |
           cd kernel_workspace/common
