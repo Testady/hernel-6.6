@@ -279,7 +279,7 @@ static int __init hwbp_init(void)
     major = MAJOR(dev);
     cdev_init(&hwbp_cdev, &hwbp_fops);
     cdev_add(&hwbp_cdev, dev, 1);
-    hwbp_class = class_create("hwbp");
+    hwbp_class = class_create(THIS_MODULE, "hwbp");
     if (IS_ERR(hwbp_class)) { cdev_del(&hwbp_cdev); unregister_chrdev_region(dev, 1); return PTR_ERR(hwbp_class); }
     hwbp_device = device_create(hwbp_class, NULL, dev, NULL, "%s", node_name);
     if (IS_ERR(hwbp_device)) { class_destroy(hwbp_class); cdev_del(&hwbp_cdev); unregister_chrdev_region(dev, 1); return PTR_ERR(hwbp_device); }
